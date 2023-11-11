@@ -72,7 +72,7 @@ uint16_t hall1;
 void loop() {
   // put your main code here, to run repeatedly:
 
-delay(1000);            // waits for a second
+delay(100);            // waits for a second
 counter1 +=1;
 Serial.println(counter1);
 hall1=analogRead(A6);
