@@ -6,25 +6,12 @@
 
 #define led1 A4
 #define led2 A3
-#define led3 2
-#define led4 3
-#define led5 4
-#define led6 5
-#define led7 6
-#define led8 7
-#define led9 8
-#define led10 9
-
-#define pump 10
-#define hf 11 // sensor feed
-#define light 12
 
 
-int moisture = 0;
-int moistureOffsetcorrected = 0;
-int discreteMoisture = 0;
-int irrigate =0 ;
-int timePump=0;
+
+
+
+
 int time0=0;
 int seconds = 0;
 int minutes=0;
@@ -33,22 +20,12 @@ int tick=0;
 
 void setup() {
 
-pinMode(hf,OUTPUT);// hf out
-pinMode(pump, OUTPUT);
-pinMode(light, OUTPUT);
+
 
 pinMode(hall, INPUT);
 
 pinMode(led1, OUTPUT);
 pinMode(led2, OUTPUT);
-pinMode(led3, OUTPUT);
-pinMode(led4, OUTPUT);
-pinMode(led5, OUTPUT);
-pinMode(led6, OUTPUT);
-pinMode(led7, OUTPUT);
-pinMode(led8, OUTPUT);
-pinMode(led9, OUTPUT);
-pinMode(led10, OUTPUT);
 
 
 //Timer 2 init (sensor feed)
@@ -74,7 +51,7 @@ void loop() {
 
 delay(100);            // waits for a second
 counter1 +=1;
-Serial.println(counter1);
+//Serial.println(counter1);
 hall1=analogRead(A6);
 Serial.println(hall1);
 
@@ -88,7 +65,8 @@ Serial.println(hall1);
 void timer2_init()
 {
   cli();
-  TCCR2A = ((1 << WGM21) | (1 << COM2A0));
+  TCCR2A = ((1 << WGM21) | (1 << COM2A0));// CTC normal port operation
+  //TCCR2B = (1 << WGM22); this bit switches toggle on compare match on 
   TCCR2B = (4 << CS20); // prescaler
   TIMSK2 = 0;
   OCR2A = 0;
@@ -121,8 +99,7 @@ void timer1_init()
 ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 1 Hz
 {
  //Clock
-  timePump +=1;
-
+ 
   seconds +=1;
 
   if(seconds > 59)
