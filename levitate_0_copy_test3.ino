@@ -28,6 +28,7 @@ int tick=0;
 int16_t  counter1;
 uint16_t hall1;     //adc values
 uint16_t trimmer1;  //adc values
+int16_t      error;
 
 void setup() {
 
@@ -50,12 +51,11 @@ timer1_init();
 
 //Funktion prototypes
 
-Serial.begin(9600);
+//Serial.begin(9600); default
+Serial.begin(115200);
 
 
-delay(1000); 
 
-setPWM(pwmOut, 0);
 }
 
 
@@ -74,10 +74,17 @@ counter1 +=1;
 // Serial.print("Trimmer");
 // Serial.println(trimmer1);
 
- Serial.print(hall1);
- Serial.print(",");
- Serial.println(trimmer1);
+  Serial.print(hall1);
+  Serial.print(",");
+  Serial.print(trimmer1);
+  Serial.print(",");
+  Serial.println(error);
 
+// Serial.print(0); // To freeze the lower limit
+// Serial.print(" ");
+// Serial.print(1000); // To freeze the upper limit
+// Serial.print(" ");
+// Serial.println(error); 
    
     
 
@@ -85,17 +92,32 @@ counter1 +=1;
 
 ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 1 Hz
 {
+  int16_t correctingValue;
   cli();
   hall1=    analogRead(hall);
   trimmer1= analogRead(trimmer);
-  if(hall1 < trimmer1)
+  
+  error = trimmer1 - hall1;
+  error = error + 635;// for readability on serial plotter
+
+  correctingValue = error - 635;
+  correctingValue = error*40 ;
+  if(correctingValue< 0)
   {
-   setPWM(pwmOut, 255);
+    correctingValue= 0;
   }
-  else
-  {
-    setPWM(pwmOut, 0);
-  }
+  setPWM(pwmOut, correctingValue);
+
+  // if(hall1 < trimmer1) //Comparator behaviour but it works
+  // {
+  //  setPWM(pwmOut, 255);
+ 
+  // }
+  // else
+  // {
+  //   setPWM(pwmOut, 0);
+  // }
+ 
   sei();
 }
 
