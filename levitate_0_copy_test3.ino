@@ -25,6 +25,10 @@ int minutes=0;
 int hours=0;
 int tick=0;
 
+int16_t  counter1;
+uint16_t hall1;     //adc values
+uint16_t trimmer1;  //adc values
+
 void setup() {
 
 sbi(ADCSRA,ADPS2) ; //configure adc to highspeed and lowish precision
@@ -42,38 +46,79 @@ timer2_init();
 //Timer1 init( timebase)
 timer1_init();
 
+//Function prototypes
 
+//Funktion prototypes
 
 Serial.begin(9600);
 
 
 delay(1000); 
 
-
+setPWM(pwmOut, 0);
 }
 
-int16_t counter1;
-uint16_t hall1;
-uint16_t trimmer1;
+
 
 void loop() {
+
   // put your main code here, to run repeatedly:
 
-delay(1000);            // waits for a second
+delay(10);            // waits for a second
 counter1 +=1;
 //Serial.println(counter1);
 
 
-Serial.print("Hallsensor:");
-Serial.println(hall1);
-Serial.print("Trimmer");
-Serial.println(trimmer1);
+// Serial.print("Hallsensor:");
+// Serial.println(hall1);
+// Serial.print("Trimmer");
+// Serial.println(trimmer1);
 
- 
+ Serial.print(hall1);
+ Serial.print(",");
+ Serial.println(trimmer1);
 
    
     
 
+}
+
+ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 1 Hz
+{
+  cli();
+  hall1=    analogRead(hall);
+  trimmer1= analogRead(trimmer);
+  if(hall1 < trimmer1)
+  {
+   setPWM(pwmOut, 255);
+  }
+  else
+  {
+    setPWM(pwmOut, 0);
+  }
+  sei();
+}
+
+
+
+// There is a narrow spike in pwm out even if D=0 this is due to hw-limitations.
+// The following function mitigates this problem by switching the pwm Pin do digital 0 or 0 or 1 for 255 pwm value
+void setPWM(int pwmPin, int pwmVal)
+{
+  pinMode(pwmPin, OUTPUT);
+  if (pwmVal == 0)
+  {
+    digitalWrite(pwmPin, LOW);
+  }
+  else if (pwmVal >= 90)
+  {
+    digitalWrite(pwmPin, HIGH);
+  }
+  else
+  {
+    sbi(TCCR2A, COM2B1);
+    OCR2B = pwmVal;
+  }
 }
 
 // void timer2_init() //funktionierende reserve
@@ -93,7 +138,7 @@ void timer2_init()
   TCCR2A = (1<<COM2B1) + (1<<WGM21) + (1<<WGM20); // Set OC2B at bottom, clear OC2B at compare match
   TCCR2B = (1<<CS21)+(1<<WGM22); // prescaler = 8
   OCR2A = 255;
-  OCR2B = 200; //PWM: 255=100%
+  OCR2B = 0; //PWM: 255=100%
   DDRD |= (1<<PD3);
 
 }
@@ -127,18 +172,4 @@ ISR(TIMER2_COMPA_vect)
 {
 
 }
-ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 1 Hz
-{
-  cli();
-  hall1=    analogRead(hall);
-  trimmer1= analogRead(trimmer);
-  if(hall1 < trimmer1)
-  {
-    OCR2B = 255;
-  }
-  else
-  {
-    OCR2B = 0;
-  }
-  sei();
-}
+
