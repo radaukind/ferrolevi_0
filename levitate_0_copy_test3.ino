@@ -13,9 +13,11 @@
 #define hall A7
 #define trimmer A6
 #define pwmOut 3
+#define freqTestOut 4
 
-
-
+#define KP  6
+#define KD  10
+#define KI  1
 
 
 
@@ -28,7 +30,15 @@ int tick=0;
 int16_t  counter1;
 uint16_t hall1;     //adc values
 uint16_t trimmer1;  //adc values
-int16_t      error;
+int16_t  error;
+int16_t  errorScaled;
+int16_t  errorPrevious;
+int16_t  proportional;
+int16_t  derivative;
+int16_t  integral;
+int16_t  correctingValue;
+
+
 
 void setup() {
 
@@ -39,7 +49,7 @@ cbi(ADCSRA,ADPS0) ;
 pinMode(hall, INPUT);
 pinMode(trimmer, INPUT);
 pinMode(pwmOut, OUTPUT);
-
+pinMode(freqTestOut, OUTPUT);
 
 
 //Timer 2 init (pwmOut)
@@ -74,11 +84,11 @@ counter1 +=1;
 // Serial.print("Trimmer");
 // Serial.println(trimmer1);
 
-  Serial.print(hall1);
-  Serial.print(",");
-  Serial.print(trimmer1);
-  Serial.print(",");
-  Serial.println(error);
+  // Serial.print(hall1);
+  // Serial.print(",");
+   Serial.println(trimmer1);
+  // Serial.print(",");
+  // Serial.println(error);
 
 // Serial.print(0); // To freeze the lower limit
 // Serial.print(" ");
@@ -86,26 +96,46 @@ counter1 +=1;
 // Serial.print(" ");
 // Serial.println(error); 
    
-    
+  // Serial.print(hall1);
+  // Serial.print(",");
+  // Serial.print(proportional);
+  // Serial.print(",");
+  // Serial.print(integral);
+  // Serial.print(",");
+  // Serial.println(derivative);
+   
 
 }
 
 ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 1 Hz
 {
-  int16_t correctingValue;
+  
   cli();
+  errorPrevious = error;
   hall1=    analogRead(hall);
   trimmer1= analogRead(trimmer);
   
   error = trimmer1 - hall1;
-  error = error + 635;// for readability on serial plotter
+  errorScaled = error + 635;// for readability on serial plotter
 
-  correctingValue = error - 635;
-  correctingValue = error*40 ;
+  ///P-Part
+  proportional = error ;
+  //D-Part
+  derivative   = error-errorPrevious;// no need to divide by timestep cause timestep is constant
+  //I-Part
+  integral    += error;
+  
+  correctingValue = (KP * proportional + KD * derivative + KI * integral)/3;
+  
   if(correctingValue< 0)
   {
     correctingValue= 0;
   }
+
+
+  ///////////////diagnosis//////////////
+  
+
   setPWM(pwmOut, correctingValue);
 
   // if(hall1 < trimmer1) //Comparator behaviour but it works
@@ -117,14 +147,15 @@ ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 1 Hz
   // {
   //   setPWM(pwmOut, 0);
   // }
- 
+  
+  digitalWrite(freqTestOut, !digitalRead(freqTestOut)); // toggle a pin to check if isr frequnecy
   sei();
 }
 
 
 
 // There is a narrow spike in pwm out even if D=0 this is due to hw-limitations.
-// The following function mitigates this problem by switching the pwm Pin do digital 0 or 0 or 1 for 255 pwm value
+// The following function mitigates this problem by switching the pwm Pin do digital 0 or 1 for 0 or 255 pwm value
 void setPWM(int pwmPin, int pwmVal)
 {
   pinMode(pwmPin, OUTPUT);
@@ -174,7 +205,7 @@ void timer1_init()
   //OCR1A = 15624;// entspricht 1 Hz  bei 1024 Presclr
   //TCCR1B |= (1<<CS10) | (1<<CS12);// presclr = 1024
   
-  OCR1A = 1600; //should equate to 10kHz
+  OCR1A = 1600; //should equate to 10kHz (and it does :) )
   TCCR1B |= (1<<CS10) ;// presclr = 1
   
   TCCR1B |= (1<<WGM12); //CTC
