@@ -11,14 +11,18 @@
 #endif
 
 #define hall A7
-#define trimmer A6
+#define hallB A6
+#define trimmer A5
 #define pwmOut 3
 #define freqTestOut 4
 
+// #define KP  6
+// #define KD  10
+// #define KI  1
+
 #define KP  6
 #define KD  10
-#define KI  1
-
+#define KI  6
 
 
 int time0=0;
@@ -28,8 +32,10 @@ int hours=0;
 int tick=0;
 
 int16_t  counter1;
-uint16_t hall1;     //adc values
-uint16_t trimmer1;  //adc values
+int16_t hall1;     //adc values
+int16_t hall1B;
+int16_t trimmer1;  //adc values
+int16_t hallMeasError[255];
 int16_t  error;
 int16_t  errorScaled;
 int16_t  errorPrevious;
@@ -71,7 +77,28 @@ Serial.begin(115200);
 
 
 void loop() {
+delay(500);
+// measure sensor values for each pwm setpoint
+for(int i=0; i<256; i++)
+{
+  setPWM(pwmOut,i);
+  delay(100);
 
+  // Serial.print(i);
+  // Serial.print(",");
+  // Serial.print(hall1);
+  // Serial.print(",");
+  // Serial.println(hall1B);
+  hallMeasError[i]=(hall1-hall1B);
+  Serial.print(i);
+  Serial.print(",");
+  Serial.println(hallMeasError[i]);
+  
+
+  
+
+  
+}
   // put your main code here, to run repeatedly:
 
 delay(10);            // waits for a second
@@ -86,9 +113,9 @@ counter1 +=1;
 
   // Serial.print(hall1);
   // Serial.print(",");
-   Serial.println(trimmer1);
+  // Serial.print(hall1B);
   // Serial.print(",");
-  // Serial.println(error);
+  // Serial.println(trimmer1);
 
 // Serial.print(0); // To freeze the lower limit
 // Serial.print(" ");
@@ -107,12 +134,13 @@ counter1 +=1;
 
 }
 
-ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 1 Hz
+ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 10kHz
 {
   
   cli();
   errorPrevious = error;
   hall1=    analogRead(hall);
+  hall1B=    analogRead(hallB);
   trimmer1= analogRead(trimmer);
   
   error = trimmer1 - hall1;
@@ -136,7 +164,7 @@ ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 1 Hz
   ///////////////diagnosis//////////////
   
 
-  setPWM(pwmOut, correctingValue);
+ // setPWM(pwmOut, correctingValue);
 
   // if(hall1 < trimmer1) //Comparator behaviour but it works
   // {
@@ -147,6 +175,8 @@ ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 1 Hz
   // {
   //   setPWM(pwmOut, 0);
   // }
+
+ // setPWM(pwmOut,0);
   
   digitalWrite(freqTestOut, !digitalRead(freqTestOut)); // toggle a pin to check if isr frequnecy
   sei();
