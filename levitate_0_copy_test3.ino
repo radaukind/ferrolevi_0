@@ -15,14 +15,16 @@
 #define trimmer A5
 #define pwmOut 3
 #define freqTestOut 4
+#define led   5
+
 
 // #define KP  6
 // #define KD  10
 // #define KI  1
 
-#define KP  6
+#define KP  4
 #define KD  10
-#define KI  6
+#define KI  0
 
 
 int time0=0;
@@ -32,10 +34,11 @@ int hours=0;
 int tick=0;
 
 int16_t  counter1;
-int16_t hall1;     //adc values
-int16_t hall1B;
-int16_t trimmer1;  //adc values
-int16_t hallMeasError[255];
+int16_t  hall1;     //adc values
+int16_t  hall1B;
+int16_t  trimmer1;  //adc values
+int16_t  hallMeasError[256];
+int16_t  hallLinearized;
 int16_t  error;
 int16_t  errorScaled;
 int16_t  errorPrevious;
@@ -43,6 +46,7 @@ int16_t  proportional;
 int16_t  derivative;
 int16_t  integral;
 int16_t  correctingValue;
+int16_t hallMeasErrorTest;
 
 
 
@@ -56,7 +60,7 @@ pinMode(hall, INPUT);
 pinMode(trimmer, INPUT);
 pinMode(pwmOut, OUTPUT);
 pinMode(freqTestOut, OUTPUT);
-
+pinMode(led,OUTPUT);
 
 //Timer 2 init (pwmOut)
 timer2_init();
@@ -69,47 +73,88 @@ timer1_init();
 
 //Serial.begin(9600); default
 Serial.begin(115200);
+  delay(500);
+  digitalWrite(led,0);
+// measure sensor values for each pwm setpoint
+  for(uint16_t  i=0; i<256; i++)
+  {
+    
+      setPWM(pwmOut,i);
+    
 
+    delay(10);
 
+    // Serial.print(i);
+    // Serial.print(",");
+    // Serial.print(hall1);
+    // Serial.print(",");
+    // Serial.println(hall1B);
+    
+    
+    Serial.print(OCR2B);
+    Serial.print(",");
+    Serial.print(hall1);
+    Serial.print(",");
+    Serial.print(hall1B);
+    Serial.print(",");
 
+    hallMeasError[i]=(hall1-hall1B);
+    delay(10);
+    Serial.println(hallMeasError[i]);
+    
+  }
+  delay(1000);
+
+  digitalWrite(led,1);
+  Serial.println("substracting hallMeasError and run pwm-ramp again");
+
+  delay(1000);
+
+  for(uint16_t n=0; n<256; n++)
+  {
+    setPWM(pwmOut,n);
+    delay(10);
+
+    
+    
+   
+    Serial.print(n);
+    Serial.print(",");
+
+    hallLinearized = ((hall1-hall1B)-hallMeasError[n]);
+    
+    Serial.print(hallMeasError[n]);
+    Serial.print(",");
+    Serial.println(hallLinearized);
+  }
+  setPWM(pwmOut,23);
+  Serial.println("pwmvalue");
+  Serial.println(OCR2B);
 }
 
 
 
 void loop() {
-delay(500);
-// measure sensor values for each pwm setpoint
-for(int i=0; i<256; i++)
-{
-  setPWM(pwmOut,i);
-  delay(100);
-
-  // Serial.print(i);
-  // Serial.print(",");
-  // Serial.print(hall1);
-  // Serial.print(",");
-  // Serial.println(hall1B);
-  hallMeasError[i]=(hall1-hall1B);
-  Serial.print(i);
-  Serial.print(",");
-  Serial.println(hallMeasError[i]);
-  
 
   
-
   
-}
+  
+//
   // put your main code here, to run repeatedly:
 
-delay(10);            // waits for a second
-counter1 +=1;
+delay(100);            // waits for a second
+
 //Serial.println(counter1);
 
 
-// Serial.print("Hallsensor:");
-// Serial.println(hall1);
-// Serial.print("Trimmer");
-// Serial.println(trimmer1);
+Serial.print("HallLinearized:");
+Serial.print(hallLinearized);
+Serial.print(",");
+Serial.print("Trimmer");
+Serial.print(trimmer1);
+Serial.print(",");
+Serial.print("error");
+Serial.println(error);
 
   // Serial.print(hall1);
   // Serial.print(",");
@@ -142,9 +187,11 @@ ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 10kHz
   hall1=    analogRead(hall);
   hall1B=    analogRead(hallB);
   trimmer1= analogRead(trimmer);
+  hallLinearized = ((hall1-hall1B)-hallMeasError[OCR2B]);
   
-  error = trimmer1 - hall1;
-  errorScaled = error + 635;// for readability on serial plotter
+  error = trimmer1 - hallLinearized;
+  
+  //errorScaled = error + 635;// for readability on serial plotter
 
   ///P-Part
   proportional = error ;
@@ -161,20 +208,20 @@ ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 10kHz
   }
 
 
-  ///////////////diagnosis//////////////
+
   
 
- // setPWM(pwmOut, correctingValue);
+//  setPWM(pwmOut, correctingValue);
 
-  // if(hall1 < trimmer1) //Comparator behaviour but it works
-  // {
-  //  setPWM(pwmOut, 255);
+  if(hall1 < trimmer1) //Comparator behaviour but it works
+  {
+   setPWM(pwmOut, 255);
  
-  // }
-  // else
-  // {
-  //   setPWM(pwmOut, 0);
-  // }
+  }
+  else
+  {
+    setPWM(pwmOut, 0);
+  }
 
  // setPWM(pwmOut,0);
   
@@ -193,7 +240,7 @@ void setPWM(int pwmPin, int pwmVal)
   {
     digitalWrite(pwmPin, LOW);
   }
-  else if (pwmVal >= 90)
+  else if (pwmVal >= 255)
   {
     digitalWrite(pwmPin, HIGH);
   }
