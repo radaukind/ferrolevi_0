@@ -1,3 +1,5 @@
+#include <PID_v1.h>
+
 //>
 //
 //$ sudo chmod a+rw /dev/ttyUSB0
@@ -22,10 +24,10 @@
 // #define KD  10
 // #define KI  1
 
-#define KP  15
-#define KD  6
-#define KI  2
-
+#define KP   5
+#define KD   9
+#define KI   0
+#define GAIN 1
 
 int time0=0;
 int seconds = 0;
@@ -45,9 +47,17 @@ int16_t  errorPrevious;
 int16_t  proportional;
 int16_t  derivative;
 int16_t  integral;
-int16_t  correctingValue;
+int16_t   correctingValue;
 int16_t hallMeasErrorTest;
+uint8_t pwmVal;
 
+//Define Variables we'll be connecting to
+double Setpoint, Input, Output;
+
+//Specify the links and initial tuning parameters
+//double Kp=2, Ki=5, Kd=1;
+double Kp=5, Ki=0, Kd=0;
+PID myPID(&Input, &Output, &Setpoint, Kp, Ki, Kd, DIRECT);
 
 
 void setup() {
@@ -62,10 +72,10 @@ pinMode(pwmOut, OUTPUT);
 pinMode(freqTestOut, OUTPUT);
 pinMode(led,OUTPUT);
 
-//Timer 2 init (pwmOut)
+
 timer2_init();
-//Timer1 init( timebase)
-timer1_init();
+
+//timer1_init();
 
 //Function prototypes
 
@@ -76,15 +86,17 @@ Serial.begin(115200);
   delay(500);
   digitalWrite(led,0);
 // measure sensor values for each pwm setpoint
-  cli();
   for(uint16_t  i=0; i<256; i++)
   {
-    
+    cli();
       setPWM(pwmOut,i);
     
 
     delay(10);
-
+    hall1=    analogRead(hall);
+    hall1B=    analogRead(hallB);
+    trimmer1= analogRead(trimmer);
+  
     // Serial.print(i);
     // Serial.print(",");
     // Serial.print(hall1);
@@ -102,9 +114,8 @@ Serial.begin(115200);
     hallMeasError[i]=(hall1-hall1B);
     delay(10);
     Serial.println(hallMeasError[i]);
-    
+    sei();
   }
- 
   delay(1000);
 
   digitalWrite(led,1);
@@ -114,10 +125,13 @@ Serial.begin(115200);
 
   for(uint16_t n=0; n<256; n++)
   {
+    cli();
     setPWM(pwmOut,n);
     delay(10);
 
-    
+    hall1=    analogRead(hall);
+    hall1B=    analogRead(hallB);
+    trimmer1= analogRead(trimmer);
     
    
     Serial.print(n);
@@ -128,57 +142,63 @@ Serial.begin(115200);
     Serial.print(hallMeasError[n]);
     Serial.print(",");
     Serial.println(hallLinearized);
+    sei();
   }
+
+   //initialize the variables we're linked to
+  Input = hallLinearized;
+  Setpoint = trimmer1;
+  
+  //turn the PID on
+  myPID.SetMode(AUTOMATIC);
+  myPID.SetSampleTime(1);
+  
+  
   setPWM(pwmOut,23);
   Serial.println("pwmvalue");
   Serial.println(OCR2B);
-  sei();
 }
 
 
 
 void loop() {
 
-  
+ 
   
   
 //
   // put your main code here, to run repeatedly:
+  hall1=    analogRead(hall);
+  hall1B=    analogRead(hallB);
+  trimmer1= analogRead(trimmer);
 
-delay(100);            // waits for a second
+  
+  hallLinearized = ((hall1-hall1B)-hallMeasError[OCR2B]);
+    
+  error = trimmer1 - hallLinearized;
+  cli();
+  Input = hallLinearized;
+  myPID.Compute();
+  
+  pwmVal = round(Output);
+  setPWM(pwmOut,pwmVal);
+  sei();
 
-//Serial.println(counter1);
 
 
-Serial.print("HallLinearized:");
-Serial.print(hallLinearized);
-Serial.print(",");
-Serial.print("Trimmer");
-Serial.print(trimmer1);
-Serial.print(",");
-Serial.print("error");
-Serial.println(error);
+  Serial.print("HallLinearized:");
+  Serial.print(hallLinearized);
+  Serial.print(",");
+  Serial.print("Trimmer:");
+  Serial.print(trimmer1);
+  Serial.print(",");
+  Serial.print("error:");
+  Serial.print(error);
+  Serial.print(",");
+  Serial.print("OCR2B:");
+  Serial.print(pwmVal);
+  Serial.println(",");
 
-  // Serial.print(hall1);
-  // Serial.print(",");
-  // Serial.print(hall1B);
-  // Serial.print(",");
-  // Serial.println(trimmer1);
-
-// Serial.print(0); // To freeze the lower limit
-// Serial.print(" ");
-// Serial.print(1000); // To freeze the upper limit
-// Serial.print(" ");
-// Serial.println(error); 
-   
-  // Serial.print(hall1);
-  // Serial.print(",");
-  // Serial.print(proportional);
-  // Serial.print(",");
-  // Serial.print(integral);
-  // Serial.print(",");
-  // Serial.println(derivative);
-   
 
 }
 
@@ -189,45 +209,15 @@ ISR(TIMER1_COMPA_vect) //Interrupt at frequency of 10kHz
   errorPrevious = error;
   hall1=    analogRead(hall);
   hall1B=    analogRead(hallB);
-  //trimmer1= analogRead(trimmer);
-
+  trimmer1= analogRead(trimmer);
+  
   hallLinearized = ((hall1-hall1B)-hallMeasError[OCR2B]);
   
   error = trimmer1 - hallLinearized;
   
-  //errorScaled = error + 635;// for readability on serial plotter
-
-  ///P-Part
-  proportional = error ;
-  //D-Part
-  derivative   = error-errorPrevious;// no need to divide by timestep cause timestep is constant
-  //I-Part
-  integral    += error;
-  
-  correctingValue = (KP * proportional + KD * derivative + KI * integral)/3;
-  
-  if(correctingValue< 0)
-  {
-    correctingValue= 0;
-  }
-
-
-
   
 
-  setPWM(pwmOut, correctingValue);
-
-  // if(hall1 < trimmer1) //Comparator behaviour but it works
-  // {
-  //  setPWM(pwmOut, 255);
- 
-  // }
-  // else
-  // {
-  //   setPWM(pwmOut, 0);
-  // }
-
- // setPWM(pwmOut,0);
+  
   
   digitalWrite(freqTestOut, !digitalRead(freqTestOut)); // toggle a pin to check if isr frequnecy
   sei();
@@ -306,4 +296,5 @@ ISR(TIMER2_COMPA_vect)
 {
 
 }
+
 
